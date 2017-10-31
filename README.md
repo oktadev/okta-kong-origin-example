@@ -182,7 +182,7 @@ Let's look a little more closely at what's going on here.
 
 * On the second line, we reference the network we created. This allows this container to connect to other container on 
 the same network.
-* On the fourth line, we set and environment variable to tell Kong to use the oidc plugin
+* On the fourth line, we set an environment variable to tell Kong to use the oidc plugin
 * Lines five and six ensure that Kong can reference the root certificate authority for SSL connections. This is
 important for being able to connect securely to Okta.
 * The last line references the image we created above
@@ -232,14 +232,14 @@ http -f POST localhost:8001/apis/ \
 ```
 
 This command uses Kong's Admin API, which runs on port `8001` by default. Notice how the `upstream_url` is connecting
-to the Spring Boot app which runs on port `8080` (within its container). The Docker networking allows us to reference
+to the Spring Boot app which runs on port `8080` (within its container). Docker networking allows us to reference
 the name of one container from another - as long as they're all on the same network.
 
 ```
 http POST localhost:8001/apis/okta-secure/plugins name=oidc \
-config.client_id="<Okta OIDC App Client ID>" \
-config.client_secret="<Okta OIDC App Client Secret>" \
-config.discovery="https://<Okta Tenant Name>/oauth2/default/.well-known/openid-configuration"
+    config.client_id="<Okta OIDC App Client ID>" \
+    config.client_secret="<Okta OIDC App Client Secret>" \
+    config.discovery="https://<Okta Tenant Name>/oauth2/default/.well-known/openid-configuration"
 ``` 
 
 This command configures the Kong oidc plugin to connect to the Okta oidc application you setup earlier.
