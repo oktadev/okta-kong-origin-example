@@ -6,7 +6,9 @@ header.
 The expectation is that this app is configured to only accept connections from an API Gateway and that the API
 Gateway sets the expected header once the user has authenticated.
 
-This example uses the [Kong]() API Gateway connected to [Okta]() using [OIDC]() via the [Kong OIDC Plugin]().
+This example uses the [Kong](https://getkong.org/) API Gateway connected to [Okta](https://okta.com) 
+using [OIDC](http://openid.net/specs/openid-connect-core-1_0.html) via the 
+[Kong OIDC Plugin](https://github.com/nokia/kong-oidc).
 
 To setup this example on your own, you'll need to do the following:
 
@@ -14,7 +16,8 @@ To setup this example on your own, you'll need to do the following:
 2. Create some users and groups
 3. Setup an OIDC Application on Okta
 4. Setup additional claims for the default Authorization Server on Okta
-4. Deploy this application to [Docker](), which includes the Kong API Gateway and this Spring Boot application
+4. Deploy this application to [Docker](https://www.docker.com/), which includes the Kong API Gateway and this 
+Spring Boot application
 5. Configure the Kong API Gateway to connect to the Spring Boot app
 6. Configure the Kong API Gateway to authenticate to Okta
 
@@ -105,37 +108,58 @@ Setup Docker on your local machine by clicking `Get Docker` on [https://www.dock
 
 All the screenshots below are on Mac.
 
-Switch into the `docker` folder of this project and build the image:
+There are two Docker images associated with this project. One is for the Kong API Gateway with the OIDC plugin. The
+other is the Spring Boot app that Kong will proxy to once the user has authenticated.
+
+We'll build the images and then run them in Docker containers.
+
+First, the Kong API Gateway:
 
 ```
-docker build -t okta-kong-origin-example .
+cd docker/okta-kong-oidc
+docker build -t okta-kong-oidc .
+```
+
+Then, the Spring Boot app:
+
+```
+cd ../header-origin-example
+docker build -t header-origin-example .
 ```
 
 ![user](/images/docker-1.png)
 
 Grab a cup of coffee...
 
-Next, we'll create a database container for Kong to use and we'll create a container from the image you just built.
+Next, we'll create a Docker network for all our containers to use:
 
 ```
-docker run -d --name kong-database -p 9042:9042 cassandra:3
+docker network create okta-kong-bridge
 ```
 
-This sets up a [Cassandra]() database for Kong to use.
+Now, we'll create the containers:
+
+```
+docker run -d --name kong-database \
+    --net okta-kong-bridge \
+    cassandra:3
+```
+
+This sets up a [Cassandra](http://cassandra.apache.org/) database for Kong to use.
 
 ```
 docker run --rm \
-    --link kong-database:kong-database \
+    --net okta-kong-bridge \
     -e "KONG_DATABASE=cassandra" \
     -e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
-    okta-kong-origin-example:latest kong migrations up
+    okta-kong-oidc:latest kong migrations up
 ```
 
 This prepares the cassandra database with the latest migrations for use with Kong.
 
 ```
-docker run -d --name okta-kong-origin-example \
-    --link kong-database:kong-database \
+docker run -d --name okta-kong-oidc \
+    --net okta-kong-bridge \
     -e "KONG_LOG_LEVEL=debug" \
     -e "KONG_CUSTOM_PLUGINS=oidc" \
     -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=/etc/ssl/certs/ca-bundle.crt" \
@@ -150,41 +174,47 @@ docker run -d --name okta-kong-origin-example \
     -p 8443:8443 \
     -p 8001:8001 \
     -p 8444:8444 \
-    okta-kong-origin-example:latest
+    okta-kong-oidc:latest
 ```
 
-This creates a container using the image you created above. Let's look a little more closely at what's going on here.
+This creates a container using the `okta-kong-oidc` image we created above. 
+Let's look a little more closely at what's going on here.
 
-* On the second line, we link this container to the cassandra database we setup above
+* On the second line, we reference the network we created. This allows this container to connect to other container on 
+the same network.
 * On the fourth line, we set and environment variable to tell Kong to use the oidc plugin
 * Lines five and six ensure that Kong can reference the root certificate authority for SSL connections. This is
 important for being able to connect securely to Okta.
 * The last line references the image we created above
 
-At this point, the docker container is running including the King API Gateway and this Spring Boot example.
-
-You can verify this by looking at the log:
-
 ```
-docker logs -f okta-kong-origin-example
+docker run -d --name header-origin-example \
+    --net okta-kong-bridge \
+    header-origin-example:latest
 ```
 
-Look for these log lines to confirm that everything is running as expected:
+This creates a container using the `header-origin-example` image we created above.
+
+Notice that we are not exposing any ports to the host. This ensures that *only* containers on the `okta-kong-bridge`
+can connect to the Spring Boot app. This is important in gateway-backed applications. You don't want someone
+connecting directly to the application that sites behind the Gateway. 
+
+At this point, there should be three Docker containers running: `kong-database`, `okta-kong-oidc`, and 
+`header-origin-example`.
+
+We can confirm this by running:
 
 ```
-...
-2017/10/31 13:24:47 [debug] 80#0: *22 [lua] cluster_events.lua:231: [cluster_events] polling events from: 1509456282.289 to: 1509456287.29
-2017/10/31 13:24:47 [debug] 80#0: *22 [lua] cluster.lua:428: next_coordinator(): [lua-cassandra] load balancing policy chose host at kong-database
-2017/10/31 13:24:47 [debug] 80#0: *22 [lua] cluster.lua:615: prepare(): [lua-cassandra] preparing SELECT * FROM cluster_events
- WHERE channel IN ?
-   AND at  >  ?
-   AND at  <= ?
- on host kong-database
-...
-2017-10-31 13:24:52.156  INFO 44 --- [           main] s.b.c.e.t.TomcatEmbeddedServletContainer : Tomcat started on port(s): 8080 (http)
-2017-10-31 13:24:52.166  INFO 44 --- [           main] c.o.e.o.OriginExampleApplication         : Started OriginExampleApplication in 4.393 seconds (JVM running for 9.814)
-...
+docker container ls
+```
 
+You should see something like this:
+
+```
+CONTAINER ID        IMAGE                          COMMAND                  CREATED             STATUS              PORTS                                                                NAMES
+5fd2c1715554        header-origin-example:latest   "/docker-entrypoin..."   14 minutes ago      Up 14 minutes                                                                            header-origin-example
+1eea39a21ec7        okta-kong-oidc:latest          "/docker-entrypoin..."   14 minutes ago      Up 14 minutes       0.0.0.0:8000-8001->8000-8001/tcp, 0.0.0.0:8443-8444->8443-8444/tcp   okta-kong-oidc
+bf8b41319903        cassandra:3                    "/docker-entrypoin..."   14 minutes ago      Up 14 minutes       7000-7001/tcp, 7199/tcp, 9042/tcp, 9160/tcp                          kong-database
 ```
 
 ### Configure Kong
@@ -195,11 +225,15 @@ Okta for authentication.
 The examples below use [HTTPie](https://httpie.org) - a modern curl replacement
 
 ```
-http -f POST localhost:8001/apis/ name=okta-secure upstream_url=http://localhost:8080 uris=/
+http -f POST localhost:8001/apis/ \
+    name=okta-secure \
+    upstream_url=http://header-origin-example:8080 \
+    uris=/
 ```
 
 This command uses Kong's Admin API, which runs on port `8001` by default. Notice how the `upstream_url` is connecting
-to the Spring Boot app which runs on port `8080` (within the container).
+to the Spring Boot app which runs on port `8080` (within its container). The Docker networking allows us to reference
+the name of one container from another - as long as they're all on the same network.
 
 ```
 http POST localhost:8001/apis/okta-secure/plugins name=oidc \

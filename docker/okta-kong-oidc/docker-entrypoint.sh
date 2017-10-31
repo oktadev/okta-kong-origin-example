@@ -12,6 +12,4 @@ if [ "$1" = "/usr/local/openresty/nginx/sbin/nginx" ]; then
 	kong prepare -p "/usr/local/kong"
 fi
 
-cd okta-origin-example && ./mvnw spring-boot:run &
-
 exec "$@"
