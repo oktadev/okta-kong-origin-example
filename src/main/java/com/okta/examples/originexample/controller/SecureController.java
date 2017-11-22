@@ -20,7 +20,7 @@ public class SecureController {
     }
 
     @RequestMapping("/")
-    public String home(Model model, Principal principal) {
+    public String home(Model model) {
         model.addAttribute("user", user);
         return "authenticated";
     }
