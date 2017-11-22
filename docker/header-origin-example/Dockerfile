@@ -12,5 +12,5 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 
 STOPSIGNAL SIGTERM
 
-CMD cd okta-origin-example && ./mvnw spring-boot:run
+CMD cd okta-kong-origin-example && ./mvnw spring-boot:run
 
