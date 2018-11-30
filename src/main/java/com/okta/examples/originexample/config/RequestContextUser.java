@@ -9,6 +9,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 
 public class RequestContextUser {
@@ -24,14 +25,14 @@ public class RequestContextUser {
 
         try {
             RequestAttributes reqAttr = RequestContextHolder.currentRequestAttributes();
-
             if (
                 reqAttr instanceof ServletRequestAttributes &&
                 (req = ((ServletRequestAttributes) reqAttr).getRequest()) != null &&
                 (userInfoHeader = req.getHeader(USER_HEADER)) != null
             ) {
-                log.debug("Found user info from {} header with value {}", USER_HEADER, userInfoHeader);
-                User user =  mapper.readValue(userInfoHeader, User.class);
+                log.debug("Found user info header {}", USER_HEADER);
+                User user =  mapper.readValue(DatatypeConverter.parseBase64Binary(userInfoHeader), User.class);
+                log.debug("Resolved user {}",user.getFullName());
                 req.setAttribute(User.class.getName(), user);
                 return user;
             }
