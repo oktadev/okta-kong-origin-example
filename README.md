@@ -137,6 +137,8 @@ Next, we'll create a Docker network for all our containers to use:
 docker network create okta-kong-bridge
 ```
 
+(remove: docker network rm okta-kong-bridge)
+
 Now, we'll create the containers:
 
 ```
@@ -152,30 +154,46 @@ docker run --rm \
     --net okta-kong-bridge \
     -e "KONG_DATABASE=cassandra" \
     -e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
-    okta-kong-oidc:latest kong migrations up
+    okta-kong-oidc:latest kong migrations bootstrap
 ```
 
 This prepares the cassandra database with the latest migrations for use with Kong.
 
 ```
-docker run -d --name okta-kong-oidc \
+docker run --rm -it --name okta-kong-oidc \
     --net okta-kong-bridge \
     -e "KONG_LOG_LEVEL=debug" \
-    -e "KONG_CUSTOM_PLUGINS=oidc" \
+    -e "KONG_PLUGINS=oidc,file-log" \
     -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=/etc/ssl/certs/ca-bundle.crt" \
     -e "KONG_LUA_SSL_VERIFY_DEPTH=2" \
     -e "KONG_DATABASE=cassandra" \
     -e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
-    -e "KONG_PROXY_ACCESS_LOG=/dev/stdout" \
-    -e "KONG_ADMIN_ACCESS_LOG=/dev/stdout" \
-    -e "KONG_PROXY_ERROR_LOG=/dev/stderr" \
-    -e "KONG_ADMIN_ERROR_LOG=/dev/stderr" \
+    -e "KONG_PROXY_ACCESS_LOG=/tmp/proxy_access.log" \
+    -e "KONG_ADMIN_ACCESS_LOG=/tmp/admin_access.log" \
+    -e "KONG_PROXY_ERROR_LOG=/tmp/proxy_error.log" \
+    -e "KONG_ADMIN_ERROR_LOG=/tmp/admin_error.log" \
     -p 8000:8000 \
     -p 8443:8443 \
     -p 8001:8001 \
     -p 8444:8444 \
     okta-kong-oidc:latest
 ```
+
+docker run --rm -it --name okta-kong-oidc \
+--net okta-kong-bridge \
+-e "KONG_LOG_LEVEL=debug" \
+-e "KONG_PLUGINS=oidc" \
+-e "KONG_LUA_SSL_VERIFY_DEPTH=2" \
+-e "KONG_DATABASE=cassandra" \
+-e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
+-e "KONG_PROXY_ACCESS_LOG=/tmp/proxy_access.log" \
+-e "KONG_ADMIN_ACCESS_LOG=/tmp/admin_access.log" \
+-e "KONG_PROXY_ERROR_LOG=/tmp/proxy_error.log" \
+-e "KONG_ADMIN_ERROR_LOG=/tmp/admin_error.log" \
+-p 8000:8000 \
+-p 8001:8001 \
+okta-kong-oidc:latest
+
 
 This creates a container using the `okta-kong-oidc` image we created above. 
 Let's look a little more closely at what's going on here.
@@ -190,8 +208,18 @@ important for being able to connect securely to Okta.
 ```
 docker run -d --name header-origin-example \
     --net okta-kong-bridge \
+    -p 8080:8080 \
     header-origin-example:latest
 ```
+
+docker run --rm -it --name header-origin-example \
+--net okta-kong-bridge \
+-p 8080:8080 \
+header-origin-example:latest
+
+docker run --rm -it --name header-origin-example \
+--net okta-kong-bridge \
+header-origin-example:latest
 
 This creates a container using the `header-origin-example` image we created above.
 
@@ -225,11 +253,18 @@ Okta for authentication.
 The examples below use [HTTPie](https://httpie.org) - a modern curl replacement
 
 ```
-http -f POST localhost:8001/apis/ \
+http -f POST localhost:8001/apis \
     name=okta-secure \
     upstream_url=http://header-origin-example:8080 \
     uris=/
 ```
+
+docker exec -it okta-kong-oidc /bin/bash
+http -f :8001/services url=http://header-origin-example:8080 name=okta-secure
+http -f :8001/services/<id from previous>/routes paths=/
+
+curl -X POST -F "url=http://header-origin-example:8080" -F "name=okta-secure" localhost:8001/services
+curl -X POST -F "paths=/" localhost:8001/services/<id from previous>/routes
 
 This command uses Kong's Admin API, which runs on port `8001` by default. Notice how the `upstream_url` is connecting
 to the Spring Boot app which runs on port `8080` (within its container). Docker networking allows us to reference
@@ -241,6 +276,16 @@ http POST localhost:8001/apis/okta-secure/plugins name=oidc \
     config.client_secret="<Okta OIDC App Client Secret>" \
     config.discovery="https://<Okta Tenant Name>/oauth2/default/.well-known/openid-configuration"
 ``` 
+http -f :8001/plugins \
+name=oidc \
+config.client_id=0oacn0rczn3UQHWy90h7 \
+config.client_secret=GBmdH7-rJonJq2JZrvzCnciuaxEzwQAafJ6lOLGQ \
+config.discovery=https://dev-237330.oktapreview.com/oauth2/default/.well-known/openid-configuration
+
+curl -X POST -F "name=oidc" -F "config.client_id=0oacn0rczn3UQHWy90h7" \
+-F "config.client_secret=GBmdH7-rJonJq2JZrvzCnciuaxEzwQAafJ6lOLGQ" \
+-F "config.discovery=https://dev-237330.oktapreview.com/oauth2/default/.well-known/openid-configuration" \
+localhost:8001/plugins
 
 This command configures the Kong oidc plugin to connect to the Okta oidc application you setup earlier.
 
