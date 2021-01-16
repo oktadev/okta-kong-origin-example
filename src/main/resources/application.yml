@@ -4,3 +4,4 @@ logging:
     org.springframework.web: INFO
     org.springframework.security: INFO
     org.apache.coyote: TRACE
+    com.okta.examples: DEBUG

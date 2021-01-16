@@ -16,6 +16,7 @@ public class SpringSecurityWebAppConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
             .anyRequest().fullyAuthenticated()
             .and()
-            .addFilterBefore(new RequestContextUserFilter(), BasicAuthenticationFilter.class);
+            .addFilterBefore(new RequestContextUserFilter(), BasicAuthenticationFilter.class)
+            .exceptionHandling().accessDeniedPage("/403");
     }
 }

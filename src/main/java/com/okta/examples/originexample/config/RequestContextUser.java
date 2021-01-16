@@ -10,6 +10,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.Base64;
 
 public class RequestContextUser {
 
@@ -30,7 +31,10 @@ public class RequestContextUser {
                 (req = ((ServletRequestAttributes) reqAttr).getRequest()) != null &&
                 (userInfoHeader = req.getHeader(USER_HEADER)) != null
             ) {
-                log.debug("Found user info from {} header with value {}", USER_HEADER, userInfoHeader);
+                log.debug("Found user info from {} header with value: {}", USER_HEADER, userInfoHeader);
+                // userinfo is base64 encoded
+                userInfoHeader = new String(Base64.getDecoder().decode(userInfoHeader));
+                log.debug("{} header base64 decoded: {}", USER_HEADER, userInfoHeader);
                 User user =  mapper.readValue(userInfoHeader, User.class);
                 req.setAttribute(User.class.getName(), user);
                 return user;

@@ -29,4 +29,9 @@ public class SecureController {
         model.addAttribute("user", user);
         return "roles";
     }
+
+    @RequestMapping("/403")
+    public String unauthorized() {
+        return "/403";
+    }
 }
