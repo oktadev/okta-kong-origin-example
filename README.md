@@ -30,7 +30,7 @@ Finish setting up your account by following the link you receive in your email.
 From your Admin Console Dashboard, click `Users` -> `Groups`. Click `Add Group`. Enter `users` in the `Name` field
 and click `Add Group`. Repeat adding a group, only this time, name the group `admins`.
 
-![groups](/images/groups-1.png)
+![groups](images/groups-1.png)
 
 Click `Users` -> `People`. Click `Add Person`.
 
@@ -39,11 +39,11 @@ Fill out the form and put `users` in the `Groups` field. It's important that eit
 
 Make sure `Send user activation email now` is checked. Click `Save and Add Another`
 
-![user](/images/users-1.png)
+![user](images/users-1.png)
 
 Repeat the process, only this time, put `users` and `admins` in the `Groups` field.
 
-![user](/images/users-2.png)
+![user](images/users-2.png)
 
 You should receive a confirmation email for each of the users. Make sure you follow the link in each email to finish
 setting up these users.
@@ -54,7 +54,7 @@ Click `Web` and click `Next`.
 
 Fill out the form like so:
 
-![user](/images/applications-1.png)
+![user](images/applications-1.png)
 
 The important things here are:
 
@@ -67,34 +67,34 @@ Click `Done`
 On the `General` tab, scroll down and make note of the `Client ID` and the `Client secret`. You will need them later
 when you configure the Kong oidc plugin.
 
-![user](/images/applications-2.png)
+![user](images/applications-2.png)
 
 Click `API` -> `Authorization Servers`. Click `default`
 
 Click `Claims`
 
-![as](/images/as-1.png)
+![as](images/as-1.png)
 
 Click the pencil to the right of the `Groups` claim. This is the edit button. Select `ID Token` from the 
 `Include in token type` dropdown and click `Save`.
 
-![as](/images/as-2.png)
+![as](images/as-2.png)
 
 Click `Add Claim`. Fill in the form as follows:
 
-![as](/images/as-3.png)
+![as](images/as-3.png)
 
 Click `Create`
 
 Click `Add Claim`. Fill in the form as follows:
 
-![as](/images/as-4.png)
+![as](images/as-4.png)
 
 Click `Create`
 
 You should now see the Claims tab like so:
 
-![as](/images/as-5.png)
+![as](images/as-5.png)
 
 
 The Kong oidc plugin creates an `X-Userinfo` header based on the information found in the ID Token. The Spring Boot
@@ -127,7 +127,7 @@ cd ../header-origin-example
 docker build -t header-origin-example .
 ```
 
-![user](/images/docker-1.png)
+![user](images/docker-1.png)
 
 Grab a cup of coffee...
 
@@ -255,28 +255,28 @@ Browse to: `http://localhost:8000`
 
 You should immediately be redirected to the Okta login screen.
 
-![action](/images/action-1.png)
+![action](images/action-1.png)
 
 Log in as the user you created that belongs to the `users` group.
 
-![action](/images/action-2.png)
+![action](images/action-2.png)
 
 Click `Users Only`
 
-![action](/images/action-3.png)
+![action](images/action-3.png)
 
 You should see a screen showing the groups you belong to.
 
 Click `Back` and then click `Admins Only`
 
-![action](/images/action-4.png)
+![action](images/action-4.png)
 
 You should see a `403` Unauthorized message, since this user does not belong to the `admins` group.
 
 Now, login as the admin user you setup before.
 
-![action](/images/action-5.png)
+![action](images/action-5.png)
 
 This time, when you click on `Admins Only`, you should see the page since this user belongs to the `admins` group.
 
-![action](/images/action-6.png)
+![action](images/action-6.png)
