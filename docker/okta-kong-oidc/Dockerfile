@@ -1,10 +1,10 @@
-FROM centos:7
+FROM kong:2.3.0-alpine
+
 MAINTAINER Micah Silverman, micah.silverman@okta.com
 
-ENV KONG_VERSION 0.11.1
+USER root
 
-RUN yum install -y wget https://bintray.com/kong/kong-community-edition-rpm/download_file?file_path=dists%2Fkong-community-edition-$KONG_VERSION.el7.noarch.rpm
-RUN yum install -y git unzip && yum clean all
+RUN apk add httpie
 RUN luarocks install kong-oidc
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
