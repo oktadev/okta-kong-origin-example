@@ -4,7 +4,7 @@ MAINTAINER Micah Silverman, micah.silverman@okta.com
 
 USER root
 
-RUN apk add httpie
+RUN apk add httpie jq
 RUN luarocks install kong-oidc
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh

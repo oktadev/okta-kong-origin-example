@@ -113,18 +113,18 @@ other is the Spring Boot app that Kong will proxy to once the user has authentic
 
 We'll build the images and then run them in Docker containers.
 
-First, the Kong API Gateway:
+First, the Spring Boot app:
+
+```
+mvn clean install
+docker build -t header-origin-example .
+```
+
+Then, the Kong API Gateway:
 
 ```
 cd docker/okta-kong-oidc
 docker build -t okta-kong-oidc .
-```
-
-Then, the Spring Boot app:
-
-```
-cd ../header-origin-example
-docker build -t header-origin-example .
 ```
 
 ![user](images/docker-1.png)
@@ -137,7 +137,8 @@ Next, we'll create a Docker network for all our containers to use:
 docker network create okta-kong-bridge
 ```
 
-(remove: docker network rm okta-kong-bridge)
+**NOTE**: If you've gone through these steps previously, you can remove the network and start over with: 
+`docker network rm okta-kong-bridge`
 
 Now, we'll create the containers:
 
@@ -159,13 +160,15 @@ docker run --rm \
 
 This prepares the cassandra database with the latest migrations for use with Kong.
 
+Now that you've created all the images and infrastructure, it's time to run containers using the images. In the
+commands below, the containers are run in an interactive mode. That is, the container will be running, but you are not
+returned to the command line. You can use separate terminal tabs windows for each command.
+
 ```
 docker run --rm -it --name okta-kong-oidc \
     --net okta-kong-bridge \
     -e "KONG_LOG_LEVEL=debug" \
-    -e "KONG_PLUGINS=oidc,file-log" \
-    -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=/etc/ssl/certs/ca-bundle.crt" \
-    -e "KONG_LUA_SSL_VERIFY_DEPTH=2" \
+    -e "KONG_PLUGINS=oidc" \
     -e "KONG_DATABASE=cassandra" \
     -e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
     -e "KONG_PROXY_ACCESS_LOG=/tmp/proxy_access.log" \
@@ -173,59 +176,29 @@ docker run --rm -it --name okta-kong-oidc \
     -e "KONG_PROXY_ERROR_LOG=/tmp/proxy_error.log" \
     -e "KONG_ADMIN_ERROR_LOG=/tmp/admin_error.log" \
     -p 8000:8000 \
-    -p 8443:8443 \
     -p 8001:8001 \
-    -p 8444:8444 \
     okta-kong-oidc:latest
 ```
-
-docker run --rm -it --name okta-kong-oidc \
---net okta-kong-bridge \
--e "KONG_LOG_LEVEL=debug" \
--e "KONG_PLUGINS=oidc" \
--e "KONG_LUA_SSL_VERIFY_DEPTH=2" \
--e "KONG_DATABASE=cassandra" \
--e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
--e "KONG_PROXY_ACCESS_LOG=/tmp/proxy_access.log" \
--e "KONG_ADMIN_ACCESS_LOG=/tmp/admin_access.log" \
--e "KONG_PROXY_ERROR_LOG=/tmp/proxy_error.log" \
--e "KONG_ADMIN_ERROR_LOG=/tmp/admin_error.log" \
--p 8000:8000 \
--p 8001:8001 \
-okta-kong-oidc:latest
-
 
 This creates a container using the `okta-kong-oidc` image we created above. 
 Let's look a little more closely at what's going on here.
 
-* On the second line, we reference the network we created. This allows this container to connect to other container on 
+* On the second line, we reference the network we created. This allows this container to connect to other containers on 
 the same network.
 * On the fourth line, we set an environment variable to tell Kong to use the oidc plugin
-* Lines five and six ensure that Kong can reference the root certificate authority for SSL connections. This is
-important for being able to connect securely to Okta.
 * The last line references the image we created above
 
 ```
-docker run -d --name header-origin-example \
+docker run --rm -it --name header-origin-example \
     --net okta-kong-bridge \
-    -p 8080:8080 \
     header-origin-example:latest
 ```
-
-docker run --rm -it --name header-origin-example \
---net okta-kong-bridge \
--p 8080:8080 \
-header-origin-example:latest
-
-docker run --rm -it --name header-origin-example \
---net okta-kong-bridge \
-header-origin-example:latest
 
 This creates a container using the `header-origin-example` image we created above.
 
 Notice that we are not exposing any ports to the host. This ensures that *only* containers on the `okta-kong-bridge`
 can connect to the Spring Boot app. This is important in gateway-backed applications. You don't want someone
-connecting directly to the application that sites behind the Gateway. 
+connecting directly to the application that sits behind the Gateway. 
 
 At this point, there should be three Docker containers running: `kong-database`, `okta-kong-oidc`, and 
 `header-origin-example`.
@@ -250,44 +223,39 @@ bf8b41319903        cassandra:3                    "/docker-entrypoin..."   14 m
 Now that our docker container is running, we need to wire up the Kong API Gateway to our Spring Boot application and to
 Okta for authentication.
 
-The examples below use [HTTPie](https://httpie.org) - a modern curl replacement
+The examples below use [HTTPie](https://httpie.org) - a modern curl replacement as well as
+[jq](https://stedolan.github.io/jq/) - a fast json parser
+
+First, you connect to the kong container:
 
 ```
-http -f POST localhost:8001/apis \
-    name=okta-secure \
-    upstream_url=http://header-origin-example:8080 \
-    uris=/
-```
-
 docker exec -it okta-kong-oidc /bin/bash
-http -f :8001/services url=http://header-origin-example:8080 name=okta-secure
-http -f :8001/services/<id from previous>/routes paths=/
+```
 
-curl -X POST -F "url=http://header-origin-example:8080" -F "name=okta-secure" localhost:8001/services
-curl -X POST -F "paths=/" localhost:8001/services/<id from previous>/routes
+Next, you setup routes so when a user connects to the gateway from the outside, it can direct the traffic to an inner
+service.
 
-This command uses Kong's Admin API, which runs on port `8001` by default. Notice how the `upstream_url` is connecting
+```
+SERVICE_ID=`http -f :8001/services url=http://header-origin-example:8080 name=okta-secure | jq -r .id`
+http -f :8001/services/${SERVICE_ID}/routes paths=/
+```
+This command uses Kong's Admin API, which runs on port `8001` by default. Notice how the `url` is connecting
 to the Spring Boot app which runs on port `8080` (within its container). Docker networking allows us to reference
 the name of one container from another - as long as they're all on the same network.
 
+The json response from the call to the `/services` endpoint is piped to `jq` and the service id is extracted. The
+result is assigned to the `SERVICE_ID` environment variable which is then used in the following command to link
+routes to the service
+
 ```
-http POST localhost:8001/apis/okta-secure/plugins name=oidc \
-    config.client_id="<Okta OIDC App Client ID>" \
-    config.client_secret="<Okta OIDC App Client Secret>" \
-    config.discovery="https://<Okta Tenant Name>/oauth2/default/.well-known/openid-configuration"
-``` 
 http -f :8001/plugins \
-name=oidc \
-config.client_id=0oacn0rczn3UQHWy90h7 \
-config.client_secret=GBmdH7-rJonJq2JZrvzCnciuaxEzwQAafJ6lOLGQ \
-config.discovery=https://dev-237330.oktapreview.com/oauth2/default/.well-known/openid-configuration
+    name=oidc \
+    config.client_id=<client id> \
+    config.client_secret=<client secret> \
+    config.discovery=<issuer>/.well-known/openid-configuration
+``` 
 
-curl -X POST -F "name=oidc" -F "config.client_id=0oacn0rczn3UQHWy90h7" \
--F "config.client_secret=GBmdH7-rJonJq2JZrvzCnciuaxEzwQAafJ6lOLGQ" \
--F "config.discovery=https://dev-237330.oktapreview.com/oauth2/default/.well-known/openid-configuration" \
-localhost:8001/plugins
-
-This command configures the Kong oidc plugin to connect to the Okta oidc application you setup earlier.
+This command configures the Kong OIDC plugin to connect to the Okta OIDC application you setup earlier.
 
 ### Action!
 
