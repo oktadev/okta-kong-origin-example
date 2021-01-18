@@ -13,7 +13,7 @@
 ~ See the License for the specific language governing permissions and
 ~ limitations under the License.
 -->
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <!--/*/ <th:block th:include="fragments/head :: head"/> /*/-->
 </head>
@@ -28,7 +28,9 @@
                 <h1>403</h1>
             </div>
             <p class="lead text-muted">Unauthorized</p>
-            <a href="/" class="btn btn-success">Back</a>
+            <div sec:authorize="isAuthenticated()">
+                <a href="/" class="btn btn-success">Back</a>
+            </div>
         </div>
     </div>
 </div>
