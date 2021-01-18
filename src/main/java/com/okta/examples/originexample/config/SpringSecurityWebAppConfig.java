@@ -14,9 +14,9 @@ public class SpringSecurityWebAppConfig extends WebSecurityConfigurerAdapter {
     public void configure(HttpSecurity http) throws Exception {
         http
             .authorizeRequests()
+            .antMatchers("/images/**").permitAll()
             .anyRequest().fullyAuthenticated()
             .and()
-            .addFilterBefore(new RequestContextUserFilter(), BasicAuthenticationFilter.class)
-            .exceptionHandling().accessDeniedPage("/403");
+            .addFilterBefore(new RequestContextUserFilter(), BasicAuthenticationFilter.class);
     }
 }
