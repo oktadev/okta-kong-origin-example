@@ -162,6 +162,9 @@ docker run --rm \
 
 This prepares the cassandra database with the latest migrations for use with Kong.
 
+**NOTE**: If you previously setup cassandra and the container has exited, you can restart it with:
+`docker container start kong-database`
+
 Now that you've created all the images and infrastructure, it's time to run containers using the images. In the
 commands below, the containers are run in an interactive mode. That is, the container will be running, but you are not
 returned to the command line. You can use separate terminal tabs windows for each command.
@@ -173,10 +176,11 @@ docker run --rm -it --name okta-kong-oidc \
     -e "KONG_PLUGINS=oidc" \
     -e "KONG_DATABASE=cassandra" \
     -e "KONG_CASSANDRA_CONTACT_POINTS=kong-database" \
-    -e "KONG_PROXY_ACCESS_LOG=/tmp/proxy_access.log" \
-    -e "KONG_ADMIN_ACCESS_LOG=/tmp/admin_access.log" \
-    -e "KONG_PROXY_ERROR_LOG=/tmp/proxy_error.log" \
-    -e "KONG_ADMIN_ERROR_LOG=/tmp/admin_error.log" \
+    -e "KONG_PROXY_ACCESS_LOG=/dev/stdout" \
+    -e "KONG_ADMIN_ACCESS_LOG=/dev/stdout" \
+    -e "KONG_PROXY_ERROR_LOG=/dev/stderr" \
+    -e "KONG_ADMIN_ERROR_LOG=/dev/stderr" \
+    -e "KONG_ADMIN_LISTEN=0.0.0.0:8001" \
     -p 8000:8000 \
     -p 8001:8001 \
     okta-kong-oidc:latest
@@ -189,6 +193,9 @@ Let's look a little more closely at what's going on here.
 the same network.
 * On the fourth line, we set an environment variable to tell Kong to use the oidc plugin
 * The last line references the image we created above
+
+**NOTE**: In the configuration above we're exposing the Kong admin port to the host with: 
+`-e "KONG_ADMIN_LISTEN=0.0.0.0:8001"` and `-p 8001:8001`. In production, you would not want to do this. 
 
 ```
 docker run --rm -it --name header-origin-example \
@@ -228,13 +235,7 @@ Okta for authentication.
 The examples below use [HTTPie](https://httpie.org) - a modern curl replacement as well as
 [jq](https://stedolan.github.io/jq/) - a fast json parser
 
-First, connect to the kong container:
-
-```
-docker exec -it okta-kong-oidc /bin/bash
-```
-
-Next, setup routes so when a user connects to the gateway from the outside, it can direct the traffic to an inner
+First, setup routes so when a user connects to the gateway from the outside, it can direct the traffic to an inner
 service.
 
 ```
